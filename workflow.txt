@@ -1,0 +1,178 @@
+================================================================================
+LIVE STREAMING DOMAIN - WORKFLOW DOCUMENTATION
+================================================================================
+
+1. WORKFLOW
+================================================================================
+
+The Live Streaming Domain manages live streaming sessions for makers to showcase their craft.
+
+Main Workflows:
+
+1. Stream Creation
+   - Create stream session
+   - Stream associated with maker
+   - Stream has title, description, scheduled time
+
+2. Stream Lifecycle
+   - Start stream (go live)
+   - End stream (stop broadcasting)
+   - Stream status tracking (scheduled, live, ended)
+
+3. Stream Viewing
+   - Get stream details
+   - List active streams
+   - List streams by maker
+
+4. Viewer Tracking
+   - Track viewer joining stream
+   - Track viewer leaving stream
+   - Get viewer count for stream
+   - Real-time viewer count updates
+
+================================================================================
+2. OPERATIONS TYPE
+================================================================================
+
+Operation Types:
+- Stream CRUD Operations: Create stream, get stream, list streams
+- Stream Control Operations: Start stream, end stream
+- Viewer Operations: Track viewer, get viewer count
+
+API Type: GraphQL API (AppSync)
+
+================================================================================
+3. OUTPUT OF EACH OPERATION (NO CODE, JUST DESCRIPTION)
+================================================================================
+
+3.1 Create Stream Operation
+   Input: Maker user ID, title, description, scheduled_at (optional)
+   Process:
+     - Creates stream record in live_streams table
+     - Sets status to SCHEDULED or READY
+     - Sets created_at timestamp
+   Output:
+     - Success: Stream object with stream_id, maker_user_id, title, description, status, scheduled_at, created_at
+     - Error: Validation errors, maker not found
+
+3.2 Get Stream Operation
+   Input: Stream ID
+   Process:
+     - Retrieves stream from live_streams table
+     - Returns stream details including current status
+   Output:
+     - Success: Stream object with stream_id, maker_user_id, title, description, status, stream_url, viewer_count, started_at, ended_at
+     - Error: Stream not found (404)
+
+3.3 List Streams Operation
+   Input: Maker user ID (optional), status filter (optional), pagination parameters
+   Process:
+     - Queries live_streams table with filters
+     - Returns paginated list of streams
+     - Sorted by scheduled_at or started_at
+   Output:
+     - Success: List of streams with stream_id, maker_user_id, title, status, viewer_count, scheduled_at, pagination info
+     - Error: Invalid filters, invalid pagination parameters
+
+3.4 Start Stream Operation
+   Input: Stream ID, maker user ID
+   Process:
+     - Validates stream belongs to maker
+     - Updates stream status to LIVE
+     - Sets started_at timestamp
+     - Generates stream URL (if using external streaming service)
+     - Initializes viewer tracking
+   Output:
+     - Success: Updated stream object with status (LIVE), started_at, stream_url
+     - Error: Stream not found, unauthorized access, stream already started
+
+3.5 End Stream Operation
+   Input: Stream ID, maker user ID
+   Process:
+     - Validates stream belongs to maker
+     - Updates stream status to ENDED
+     - Sets ended_at timestamp
+     - Finalizes viewer count
+   Output:
+     - Success: Updated stream object with status (ENDED), ended_at, final_viewer_count
+     - Error: Stream not found, unauthorized access, stream not live
+
+3.6 Track Viewer Operation
+   Input: Stream ID, viewer user ID, action (join/leave)
+   Process:
+     - If action is join: Creates record in stream_viewers table, increments viewer count
+     - If action is leave: Updates record with left_at timestamp, decrements viewer count
+     - Updates stream viewer_count
+   Output:
+     - Success: Viewer tracking confirmation with current viewer count
+     - Error: Stream not found, stream not live (for join action)
+
+3.7 Get Viewer Count Operation
+   Input: Stream ID
+   Process:
+     - Queries stream_viewers table for active viewers (no left_at timestamp)
+     - Returns current viewer count
+   Output:
+     - Success: Viewer count object with stream_id, viewer_count, timestamp
+     - Error: Stream not found
+
+================================================================================
+4. GENERATED EVENTS - WHO, HOW TO BE COMMUNICATED WITH WHICH OTHER DOMAIN
+================================================================================
+
+Events Published:
+- StreamCreated: Published when stream is created
+  - Who: Live Streaming Domain
+  - How: EventBridge event bus
+  - Communicated with: Notification Domain, Discovery Domain
+  - Purpose: Notify followers of upcoming stream, add to discovery feed
+  - Event Data: stream_id, maker_user_id, title, scheduled_at, created_at
+
+- StreamStarted: Published when stream goes live
+  - Who: Live Streaming Domain
+  - How: EventBridge event bus
+  - Communicated with: Notification Domain, Discovery Domain
+  - Purpose: Notify followers that stream is live, update discovery feed
+  - Event Data: stream_id, maker_user_id, started_at, stream_url
+
+- StreamEnded: Published when stream ends
+  - Who: Live Streaming Domain
+  - How: EventBridge event bus
+  - Communicated with: Notification Domain, Discovery Domain
+  - Purpose: Update discovery feed, finalize stream data
+  - Event Data: stream_id, maker_user_id, ended_at, final_viewer_count, duration
+
+- ViewerJoined: Published when viewer joins stream (optional, for analytics)
+  - Who: Live Streaming Domain
+  - How: EventBridge event bus
+  - Communicated with: Analytics Domain (if exists)
+  - Purpose: Track viewer engagement
+  - Event Data: stream_id, viewer_user_id, joined_at
+
+- ViewerLeft: Published when viewer leaves stream (optional, for analytics)
+  - Who: Live Streaming Domain
+  - How: EventBridge event bus
+  - Communicated with: Analytics Domain (if exists)
+  - Purpose: Track viewer engagement and retention
+  - Event Data: stream_id, viewer_user_id, left_at, watch_duration
+
+Events Consumed:
+- MakerVerified: From Maker Domain / Verification Trust Domain
+  - Purpose: Validate maker is verified before creating stream (optional requirement)
+  - Action: Check verification status if required
+
+Cross-Domain Communication:
+- Notification Domain: Receives StreamCreated, StreamStarted, StreamEnded events to notify followers
+- Discovery Domain: Receives StreamCreated, StreamStarted, StreamEnded events to update discovery feed
+- Maker Domain: Validates maker exists (via direct validation or events)
+- Analytics Domain: Receives ViewerJoined, ViewerLeft events for engagement tracking (if exists)
+
+Communication Method:
+- EventBridge: Primary method for asynchronous event communication
+- AppSync GraphQL: Direct queries from frontend
+- DynamoDB: Stream and viewer data stored in domain tables
+- SSM Parameters: No exports (read-only domain)
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

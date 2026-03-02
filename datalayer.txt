@@ -1,0 +1,247 @@
+# Live Streaming Domain - Data Layer Design
+
+**Purpose:** Live streaming functionality for makers ("The Workbench").
+
+**Database:** `live_db`
+
+**CDK Stack:** `live-stack`
+
+---
+
+## Tables
+
+### `live_streams`
+
+**Partition Key:** `streamId` (String, UUID)
+**Sort Key:** None
+
+**Attributes:**
+* `id` (String, PK, UUID)
+* `maker_user_id` (String) - Reference to Maker domain
+* `title` (String) - Stream title
+* `description` (String, optional) - Stream description
+* `status` (String) - "scheduled" | "live" | "ended"
+* `scheduled_start_at` (String, ISO 8601, optional) - When stream is scheduled
+* `started_at` (String, ISO 8601, optional) - When stream actually started
+* `ended_at` (String, ISO 8601, optional) - When stream ended
+* `stream_url` (String, optional) - RTMP/WebRTC stream URL
+* `playback_url` (String, optional) - HLS playback URL for viewers
+* `thumbnail_url` (String, optional) - Stream thumbnail image
+* `viewer_count` (Number) - Current number of viewers
+* `peak_viewer_count` (Number) - Highest viewer count during stream
+* `featured_product_id` (String, optional) - Product being featured/promoted
+* `created_at` (String, ISO 8601)
+* `updated_at` (String, ISO 8601)
+
+**GSI:**
+* `GSI1`: `makerUserId` (PK), `startedAt` (SK) - Maker's streams
+  * **Use Case:** Maker's stream history, studio live control
+* `GSI2`: `status` (PK), `startedAt` (SK) - Find live/scheduled streams
+  * **Use Case:** Homepage "Live Now" section, upcoming streams
+
+**TTL:** None
+
+---
+
+### `stream_viewers`
+
+**Partition Key:** `streamId` (String)
+**Sort Key:** `viewerId` (String)
+
+**Attributes:**
+* `stream_id` (String, PK)
+* `viewer_user_id` (String, SK)
+* `joined_at` (String, ISO 8601)
+* `left_at` (String, ISO 8601, optional)
+* `watch_duration_seconds` (Number, optional) - Total time watched
+
+**GSI:**
+* `GSI1`: `viewerId` (PK), `joinedAt` (SK) - User's viewing history
+  * **Use Case:** User's watched streams, analytics
+
+**TTL:** 30 days (viewer records auto-delete after 30 days)
+
+---
+
+## Query Patterns
+
+### Get Live Streams
+**Table:** `live_streams`
+**Operation:** Query on GSI2
+**Key:** `status = "live"`
+**Use Case:** Homepage "Live Now" section
+
+### Get Scheduled Streams
+**Table:** `live_streams`
+**Operation:** Query on GSI2
+**Key:** `status = "scheduled"`, sort by `scheduled_start_at` ASC
+**Use Case:** "Upcoming Streams" section
+
+### Get Maker's Streams
+**Table:** `live_streams`
+**Operation:** Query on GSI1
+**Key:** `maker_user_id`
+**Use Case:** Maker's stream history, studio dashboard
+
+### Get Stream by ID
+**Table:** `live_streams`
+**Operation:** GetItem
+**Key:** `id`
+**Use Case:** Stream detail/watch page
+
+### Get Stream Viewers
+**Table:** `stream_viewers`
+**Operation:** Query
+**Key:** `stream_id`, filter by `left_at` is null
+**Use Case:** Current viewers list, viewer count
+
+### Get User's Viewing History
+**Table:** `stream_viewers`
+**Operation:** Query on GSI1
+**Key:** `viewer_user_id`
+**Use Case:** User's watched streams
+
+---
+
+## Events Consumed
+
+This domain consumes events from other domains:
+
+* `MakerVerified` (from Verification Trust Domain)
+  * **Action:** Validate eligibility to create or start streams (optional)
+
+---
+
+## Events Published
+
+This domain publishes the following events to EventBridge:
+
+* `StreamScheduled`
+  * `stream_id` (String)
+  * `maker_user_id` (String)
+  * `scheduled_start_at` (String, ISO 8601)
+  * `created_at` (String, ISO 8601)
+
+* `StreamStarted`
+  * `stream_id` (String)
+  * `maker_user_id` (String)
+  * `started_at` (String, ISO 8601)
+
+* `StreamEnded`
+  * `stream_id` (String)
+  * `maker_user_id` (String)
+  * `ended_at` (String, ISO 8601)
+  * `peak_viewer_count` (Number)
+  * `total_watch_time` (Number) - Total seconds watched by all viewers
+
+* `ViewerJoined`
+  * `stream_id` (String)
+  * `viewer_user_id` (String)
+  * `joined_at` (String, ISO 8601)
+
+* `ViewerLeft`
+  * `stream_id` (String)
+  * `viewer_user_id` (String)
+  * `left_at` (String, ISO 8601)
+  * `watch_duration_seconds` (Number)
+
+---
+
+## Design Considerations
+
+1. **Streaming Infrastructure:** Uses AWS MediaLive, MediaPackage, or third-party (e.g., Mux, Twilio) for streaming.
+
+2. **Viewer Count:** Updated in real-time. Use DynamoDB Streams or WebSocket to update count as viewers join/leave.
+
+3. **Stream States:**
+   - **scheduled:** Stream scheduled for future
+   - **live:** Stream currently active
+   - **ended:** Stream completed
+
+4. **Featured Product:** Makers can feature a product during stream. Shown to viewers, can link to product page.
+
+5. **Viewer Tracking:** Tracks who watched, when they joined/left, and watch duration. Used for analytics.
+
+6. **TTL on Viewers:** Viewer records auto-delete after 30 days to manage storage (analytics can be aggregated elsewhere).
+
+7. **Playback URL:** After stream ends, can generate VOD (Video on Demand) playback URL for replay.
+
+---
+
+## Access Patterns
+
+### High Frequency
+* Get live streams (homepage, live page)
+* Update viewer count (real-time during stream)
+* Track viewer join/leave (real-time)
+
+### Medium Frequency
+* Get scheduled streams (upcoming streams section)
+* Get maker's streams (maker studio)
+
+### Low Frequency
+* Create stream (maker schedules stream)
+* End stream (maker ends stream)
+* Get viewing history (user profile)
+
+---
+
+## Data Consistency
+
+* **Eventually Consistent:** Viewer counts updated in real-time. Typical delay: < 1 second.
+
+---
+
+## Streaming Infrastructure Options
+
+### Option 1: AWS MediaLive + MediaPackage
+* **MediaLive:** Encodes stream
+* **MediaPackage:** Creates HLS playback
+* **S3:** Stores VOD recordings
+
+### Option 2: Third-Party (Mux, Twilio)
+* **Mux:** Handles encoding, playback, analytics
+* **Twilio Video:** WebRTC-based streaming
+
+### Option 3: WebRTC (Self-Hosted)
+* **Kurento/Janus:** WebRTC media server
+* **More complex, but more control**
+
+---
+
+## Real-Time Updates
+
+### WebSocket API
+* **Service:** API Gateway WebSocket API
+* **Use Case:** Real-time viewer count updates, chat during stream
+
+### DynamoDB Streams
+* **Service:** DynamoDB Streams + Lambda
+* **Use Case:** Update viewer count when viewers join/leave
+
+---
+
+## Next Steps
+
+1. **Create CDK stack** with DynamoDB tables
+2. **Set up streaming infrastructure** (MediaLive/MediaPackage or third-party)
+3. **Set up S3 bucket** for stream recordings/thumbnails
+4. **Set up EventBridge rules** for published events
+5. **Set up API Gateway WebSocket API** for real-time updates
+6. **Create Lambda functions** for:
+   * Stream creation/scheduling
+   * Stream start/end
+   * Viewer tracking
+   * Viewer count updates
+   * Stream metadata management
+7. **Build API Gateway** endpoints:
+   * `GET /streams/live`
+   * `GET /streams/scheduled`
+   * `GET /streams/{stream_id}`
+   * `POST /streams`
+   * `PUT /streams/{stream_id}/start`
+   * `PUT /streams/{stream_id}/end`
+   * `GET /streams/maker/{maker_user_id}`
+   * `POST /streams/{stream_id}/viewers` (join)
+   * `DELETE /streams/{stream_id}/viewers/{viewer_user_id}` (leave)
+   * `GET /streams/{stream_id}/viewers`

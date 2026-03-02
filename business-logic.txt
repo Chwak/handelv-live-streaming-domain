@@ -1,0 +1,251 @@
+# Live Streaming Domain - Business Logic
+
+## Domain Purpose
+The Live Streaming Domain manages live streaming functionality for makers ("The Workbench"). This domain enables makers to stream their creative process live to collectors.
+
+## Data Layer Ownership
+The Live Streaming Domain owns and manages the following DynamoDB tables:
+- live_streams: Live stream records
+- stream_viewers: Viewer tracking for streams
+
+## Business Rules
+
+### 1. Stream Creation
+- Only verified makers can create streams
+- Streams can be scheduled or started immediately
+- Streams require title and optional description
+- Streams can feature a specific product
+- Streams start in "scheduled" or "live" status
+
+### 2. Stream Lifecycle
+- Status flow: scheduled -> live -> ended
+- Scheduled streams have scheduled_start_at timestamp
+- Live streams have started_at timestamp
+- Ended streams have ended_at timestamp
+- Stream status affects visibility
+
+### 3. Stream Management
+- Makers can start scheduled streams early
+- Makers can end streams at any time
+- Stream URLs are generated when stream starts
+- Stream thumbnails are optional
+- Stream metadata can be updated before going live
+
+### 4. Viewer Tracking
+- Viewers are tracked when they join stream
+- Viewer count is maintained in real-time
+- Viewer join/leave events are logged
+- Viewer data is used for analytics
+- Viewer privacy is maintained
+
+### 5. Featured Products
+- Streams can feature a specific product
+- Featured product is displayed during stream
+- Featured product can drive sales
+- Featured product is optional
+- Featured product can be changed during stream
+
+### 6. Stream Quality
+- Stream quality is configurable
+- Stream URLs support RTMP/WebRTC
+- Stream quality affects viewer experience
+- Stream quality is optimized for platform
+- Stream quality requirements are enforced
+
+### 7. Stream Analytics
+- Viewer count is tracked
+- Stream duration is tracked
+- Stream engagement is measured
+- Stream analytics inform recommendations
+- Stream data is used for discovery
+
+## Data Layer Interactions
+
+### Read Operations
+- Read stream by id
+- Read streams by maker_user_id
+- Read streams by status
+- Read live streams
+- Read scheduled streams
+- Read stream viewers by stream_id
+- Read viewer history by viewer_user_id
+
+### Write Operations
+- Create stream
+- Update stream status
+- Start stream
+- End stream
+- Add stream viewer
+- Remove stream viewer
+- Update viewer count
+- Update stream metadata
+
+### Data Integrity Rules
+- Streams must reference valid maker_user_id from Maker Domain
+- Featured products must reference valid product_id from Product Domain
+- Stream status transitions must be valid
+- Viewer records must reference valid stream_id
+- Viewer records must reference valid viewer_user_id
+- Stream URLs must be valid when stream is live
+
+## Event-Driven Communication
+
+### Events Published
+- StreamScheduled: When a stream is scheduled
+- StreamStarted: When a stream goes live
+- StreamEnded: When a stream ends
+- ViewerJoined: When a viewer joins stream
+- ViewerLeft: When a viewer leaves stream
+
+### Events Consumed
+- MakerVerified: From Maker Domain - required to create streams
+- ProductPublished: From Product Domain - available for featuring
+
+## Cross-Domain Boundaries
+
+### What This Domain Owns
+- Live stream records
+- Stream metadata
+- Viewer tracking
+- Stream analytics
+
+### What This Domain Does NOT Own
+- Maker profiles (Maker Domain)
+- Products (Product Domain)
+- User authentication (Identity Domain)
+- Notifications (Notification Domain)
+
+## Business Logic Constraints
+1. Only verified makers can create streams
+2. Stream status transitions must be valid
+3. Stream URLs must be generated before going live
+4. Viewer tracking must be accurate
+5. Featured products must be valid
+6. Stream quality must meet requirements
+7. Stream analytics must be collected
+8. Stream data is used for discovery
+
+## Domain Structure & Implementation
+
+### Directory Structure
+The Live Streaming Domain follows a structure similar to `/Users/jred/AWS/aedcor-backend/support_backend/lib`:
+
+```
+lib/
+├── constructs/
+│   ├── dynamodb/
+│   │   └── streaming-tables/
+│   │       └── streaming-tables-construct.ts
+│   ├── lambda/
+│   │   └── streaming/
+│   │       ├── create-stream/
+│   │       ├── start-stream/
+│   │       ├── end-stream/
+│   │       ├── get-stream/
+│   │       ├── list-streams/
+│   │       ├── track-viewer/
+│   │       ├── get-viewer-count/
+│   │       └── event-consumer/
+│   ├── media-live/
+│   │   └── streaming-channel/
+│   │       └── streaming-channel-construct.ts
+│   └── appsync/
+│       └── streaming-appsync/
+│           └── streaming-appsync-construct.ts
+├── functions/
+│   ├── lambda/
+│   │   └── streaming/
+│   │       ├── create-stream/
+│   │       │   └── create-stream-lambda.js
+│   │       ├── start-stream/
+│   │       │   └── start-stream-lambda.js
+│   │       ├── end-stream/
+│   │       │   └── end-stream-lambda.js
+│   │       ├── get-stream/
+│   │       │   └── get-stream-lambda.js
+│   │       ├── list-streams/
+│   │       │   └── list-streams-lambda.js
+│   │       ├── track-viewer/
+│   │       │   └── track-viewer-lambda.js
+│   │       ├── get-viewer-count/
+│   │       │   └── get-viewer-count-lambda.js
+│   │       └── event-consumer/
+│   │           └── event-consumer-lambda.js
+│   └── appsync-resolvers/
+│       └── streaming/
+│           ├── create-stream-resolver.js
+│           └── get-stream-resolver.js
+└── utils/
+    ├── response-utils.ts
+    ├── validation-utils.ts
+    ├── stream-url-generator.ts
+    ├── analytics-collector.ts
+    └── event-publisher.ts
+```
+
+### Data Layer Interaction Patterns
+
+#### Direct Data Access
+- **Live Streams**: Direct DynamoDB access via `live_streams` table using `stream_id` as partition key
+- **Stream Viewers**: Direct DynamoDB access via `stream_viewers` table using `stream_id` (PK) and `viewer_user_id` (SK)
+
+#### Query Patterns
+- **Get stream**: Single item read by `stream_id`
+- **List streams by maker**: GSI query by `maker_user_id`
+- **List streams by status**: GSI query by `status`
+- **List live streams**: GSI query by `status` = "live"
+- **List scheduled streams**: GSI query by `status` = "scheduled" with `scheduled_start_at` filter
+- **Get stream viewers**: Query by `stream_id`
+- **Get viewer history**: GSI query by `viewer_user_id`
+
+#### Write Patterns
+- **Create stream**: PutItem with maker verification check
+- **Start stream**: UpdateItem with status transition and URL generation
+- **End stream**: UpdateItem with status transition and end timestamp
+- **Track viewer**: PutItem for viewer join, DeleteItem for viewer leave
+- **Update viewer count**: Atomic increment/decrement operations
+
+### Business Logic Implementation
+
+#### Stream Lifecycle Management
+- Streams created in "scheduled" or "live" status
+- Status transitions: scheduled → live → ended
+- Stream URLs generated when stream starts
+- Stream metadata can be updated before going live
+
+#### Stream URL Generation
+- Stream URLs generated via AWS MediaLive or similar service
+- URLs support RTMP/WebRTC protocols
+- URLs are unique per stream
+- URLs are generated before stream goes live
+
+#### Viewer Tracking
+- Viewers tracked when they join stream
+- Viewer count maintained in real-time
+- Viewer join/leave events logged
+- Viewer data used for analytics
+
+#### Featured Products
+- Streams can feature a specific product
+- Featured product displayed during stream
+- Featured product can drive sales
+- Featured product can be changed during stream
+
+#### Event Handling
+- **Event Consumer Lambda**: Processes events from other domains
+  - `MakerVerified` → Enables stream creation
+  - `ProductPublished` → Available for featuring
+
+#### Data Consistency
+- Stream creation uses conditional writes for status validation
+- Viewer tracking uses atomic operations for count updates
+- Status transitions enforced with conditional writes
+- Stream analytics collected asynchronously
+
+#### Error Handling
+- Unverified maker → Return 403 Forbidden
+- Invalid status transition → Return 400 Bad Request
+- Stream URL generation failure → Return 500 Internal Server Error
+- Invalid featured product → Return 400 Bad Request
+- Stream not found → Return 404 Not Found
+- Unauthorized access → Return 403 Forbidden

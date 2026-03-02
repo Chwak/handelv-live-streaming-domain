@@ -1,0 +1,61 @@
+# Live Streaming Domain - Frontend Data Requirements
+
+## Overview
+All data captured from frontend for live streaming.
+
+**Domain:** Live Streaming Domain
+**Purpose:** Live streaming ("The Workbench") for makers
+**Last Updated:** 2026-01-31
+
+---
+
+## 1. STREAM MANAGEMENT
+
+### 1.1 Schedule Stream
+**Endpoint**: `POST /streams`
+
+```typescript
+{
+  title: string,
+  description?: string,
+  scheduledStartAt: string,             // ISO 8601
+  featuredProductId?: string,
+}
+```
+
+### 1.2 Start Stream
+**Endpoint**: `PUT /streams/{streamId}/start`
+
+### 1.3 End Stream
+**Endpoint**: `PUT /streams/{streamId}/end`
+
+---
+
+## 2. VIEWER TRACKING
+
+### 2.1 Join Stream
+**Endpoint**: `POST /streams/{streamId}/join`
+
+**Events Emitted**: `ViewerJoined`
+
+### 2.2 Leave Stream
+**Endpoint**: `POST /streams/{streamId}/leave`
+
+**Events Emitted**: `ViewerLeft`
+
+---
+
+## API Endpoints
+
+- `POST /streams` - Schedule stream
+- `PUT /streams/{id}/start` - Start stream
+- `PUT /streams/{id}/end` - End stream
+- `GET /streams/live` - Get live streams
+- `GET /streams/scheduled` - Get upcoming streams
+- `GET /streams/maker/{makerUserId}` - Maker's streams
+- `POST /streams/{id}/join` - Join as viewer
+- `POST /streams/{id}/leave` - Leave stream
+
+---
+
+**Note:** See `inter-domain-data-requirements.txt` for events.

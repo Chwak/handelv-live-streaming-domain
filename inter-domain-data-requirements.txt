@@ -1,0 +1,114 @@
+# Live Streaming Domain - Inter-Domain Data Requirements
+
+## Overview
+All events consumed and emitted for live streaming.
+
+**Domain:** Live Streaming Domain  
+**Last Updated:** 2026-01-31
+
+---
+
+## 1. EVENTS CONSUMED
+
+### 1.1 From Product Domain
+**Event**: `ProductPublished`
+
+```typescript
+{
+  event: "ProductPublished",
+  productId: string,
+  makerUserId: string,
+}
+```
+
+**Action**: Allow maker to feature this product in stream
+
+---
+
+## 2. EVENTS EMITTED
+
+### 2.1 `StreamScheduled`
+**Consumers**: Notification, Collector (followers)
+
+```typescript
+{
+  event: "StreamScheduled",
+  streamId: string,
+  makerUserId: string,
+  scheduledStartAt: string,
+  createdAt: string,
+}
+```
+
+### 2.2 `StreamStarted`
+**Consumers**: Notification, Collector (followers)
+
+```typescript
+{
+  event: "StreamStarted",
+  streamId: string,
+  makerUserId: string,
+  startedAt: string,
+}
+```
+
+### 2.3 `StreamEnded`
+**Consumers**: Analytics
+
+```typescript
+{
+  event: "StreamEnded",
+  streamId: string,
+  makerUserId: string,
+  peakViewerCount: number,
+  totalWatchTime: number,
+  endedAt: string,
+}
+```
+
+### 2.4 `ViewerJoined`
+**Consumers**: Analytics
+
+```typescript
+{
+  event: "ViewerJoined",
+  streamId: string,
+  viewerUserId: string,
+  joinedAt: string,
+}
+```
+
+### 2.5 `ViewerLeft`
+**Consumers**: Analytics
+
+```typescript
+{
+  event: "ViewerLeft",
+  streamId: string,
+  viewerUserId: string,
+  watchDurationSeconds: number,
+  leftAt: string,
+}
+```
+
+---
+
+## DEPENDENCY MAP
+
+```
+Live Streaming Domain:
+├── Consumes From:
+│   └── Product Domain
+│       └── ProductPublished
+└── Provides To:
+    ├── Notification Domain
+    │   ├── StreamScheduled
+    │   └── StreamStarted
+    ├── Collector Domain (via Notification)
+    │   ├── StreamScheduled
+    │   └── StreamStarted
+    └── Analytics Domain
+        ├── StreamEnded
+        ├── ViewerJoined
+        └── ViewerLeft
+```

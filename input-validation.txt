@@ -1,0 +1,457 @@
+================================================================================
+LIVE STREAMING DOMAIN - INPUT VALIDATION RULES
+================================================================================
+
+This document defines all input validation rules for the Live Streaming Domain GraphQL API.
+All mutations and queries must validate inputs according to these rules.
+
+================================================================================
+MUTATION: createStream
+================================================================================
+
+Input: CreateStreamInput!
+- makerUserId: ID! (required)
+- title: String! (required)
+- description: String (optional)
+- scheduledStartTime: AWSDateTime (optional)
+
+Validation Rules:
+1. makerUserId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must match authenticated user's ID
+   - Maker must be verified (optional business rule)
+
+2. title:
+   - Minimum length: 3 characters
+   - Maximum length: 200 characters
+   - Cannot be all whitespace
+   - Trim leading/trailing whitespace
+   - Must contain at least one letter or number
+
+3. description (if provided):
+   - Maximum length: 2000 characters
+   - Cannot be all whitespace
+   - Trim leading/trailing whitespace
+   - Can contain letters, numbers, spaces, punctuation, and basic formatting
+
+4. scheduledStartTime (if provided):
+   - Must be a valid ISO 8601 datetime
+   - Cannot be in the past
+   - Must be within 90 days from now
+   - Timezone must be specified or UTC
+
+Business Rules:
+- Maker must be verified (optional)
+- Stream is created in SCHEDULED status
+- User cannot have more than 5 scheduled streams at once
+- scheduledStartTime defaults to current time + 1 hour if not provided
+
+Error Responses:
+- 400 Bad Request: Invalid input format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Maker not verified or cannot create streams
+- 422 Unprocessable Entity: Validation failed (detailed field errors)
+- 429 Too Many Requests: Maximum scheduled streams limit reached
+
+================================================================================
+MUTATION: startStream
+================================================================================
+
+Input:
+- streamId: ID! (required)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream
+
+Business Rules:
+- Stream must be owned by authenticated user
+- Stream must be in SCHEDULED status
+- Stream status transitions to LIVE
+- Stream URL is generated
+- startedAt timestamp is set
+- Stream becomes visible to viewers
+
+Error Responses:
+- 400 Bad Request: Invalid streamId format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Cannot start stream (not owner, wrong status)
+- 404 Not Found: Stream not found
+- 409 Conflict: Stream not in SCHEDULED status
+
+================================================================================
+MUTATION: endStream
+================================================================================
+
+Input:
+- streamId: ID! (required)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream
+
+Business Rules:
+- Stream must be owned by authenticated user or admin
+- Stream must be in LIVE status
+- Stream status transitions to ENDED
+- endedAt timestamp is set
+- Playback URL is generated for recording
+- Stream engagement metrics are finalized
+
+Error Responses:
+- 400 Bad Request: Invalid streamId format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Cannot end stream (not owner, wrong status)
+- 404 Not Found: Stream not found
+- 409 Conflict: Stream not in LIVE status
+
+================================================================================
+MUTATION: sendChatMessage
+================================================================================
+
+Input: SendChatMessageInput!
+- streamId: ID! (required)
+- userId: ID! (required)
+- username: String! (required)
+- content: String! (required)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream
+
+2. userId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must match authenticated user's ID
+
+3. username:
+   - Minimum length: 1 character
+   - Maximum length: 50 characters
+   - Cannot be all whitespace
+   - Trim leading/trailing whitespace
+   - Must match user's display name or username
+
+4. content:
+   - Minimum length: 1 character (after trimming)
+   - Maximum length: 500 characters
+   - Cannot be all whitespace
+   - Trim leading/trailing whitespace
+   - Reject null bytes and control characters (except newlines)
+   - Filter profanity and spam (optional, configurable)
+
+Business Rules:
+- Stream must be in LIVE status
+- User must be authenticated
+- Message rate limit: 10 messages per minute per user per stream
+- Chat messages are broadcast to all stream viewers
+- Messages are stored for stream replay
+
+Error Responses:
+- 400 Bad Request: Invalid input format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Stream not live or user blocked
+- 404 Not Found: Stream not found
+- 422 Unprocessable Entity: Validation failed (content, rate limit)
+- 429 Too Many Requests: Rate limit exceeded
+
+================================================================================
+MUTATION: updateStreamInfo
+================================================================================
+
+Input: UpdateStreamInfoInput!
+- streamId: ID! (required)
+- title: String (optional)
+- description: String (optional)
+- scheduledStartTime: AWSDateTime (optional)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream owned by authenticated user
+
+2. title (if provided):
+   - Minimum length: 3 characters
+   - Maximum length: 200 characters
+   - Cannot be all whitespace
+
+3. description (if provided):
+   - Maximum length: 2000 characters
+   - Cannot be all whitespace
+
+4. scheduledStartTime (if provided):
+   - Must be a valid ISO 8601 datetime
+   - Cannot be in the past
+   - Must be within 90 days from now
+   - Can only be updated if stream is SCHEDULED
+
+Business Rules:
+- At least one field (title, description, scheduledStartTime) must be provided
+- Stream must be owned by authenticated user
+- Can only update scheduledStartTime if stream is SCHEDULED
+- Cannot update stream info if stream is ENDED or CANCELLED
+
+Error Responses:
+- 400 Bad Request: Invalid input format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Cannot update stream info
+- 404 Not Found: Stream not found
+- 409 Conflict: Cannot update scheduledStartTime for non-scheduled stream
+
+================================================================================
+QUERY: getStream
+================================================================================
+
+Input:
+- streamId: ID! (required)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+
+Business Rules:
+- Stream must exist
+- Stream is accessible to all authenticated users
+- Returns stream details including status, URLs, and engagement
+
+Error Responses:
+- 400 Bad Request: Invalid streamId format
+- 401 Unauthorized: Not authenticated
+- 404 Not Found: Stream not found
+
+================================================================================
+QUERY: listStreams
+================================================================================
+
+Input:
+- makerUserId: ID (optional)
+- status: StreamStatus (optional)
+- limit: Int (optional, default: 20, max: 100)
+- nextToken: String (optional)
+
+Validation Rules:
+1. makerUserId (if provided):
+   - Must be a valid UUID or ID format
+   - If filtering by own streams, must match authenticated user's ID
+
+2. status (if provided):
+   - Must be one of: SCHEDULED, LIVE, ENDED, CANCELLED
+   - Case-sensitive enum value
+
+3. limit:
+   - Must be between 1 and 100
+   - Default: 20 if not provided
+   - Must be a positive integer
+
+4. nextToken:
+   - Must be a valid pagination token if provided
+   - Cannot be empty string
+
+Business Rules:
+- If makerUserId provided, user can only filter by their own streams (unless admin)
+- Results filtered by provided criteria
+- Results sorted by scheduledStartTime or startedAt descending (most recent first)
+- Only LIVE and ENDED streams are publicly visible (unless filtering own streams)
+
+Error Responses:
+- 400 Bad Request: Invalid input format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Cannot access other maker's streams
+
+================================================================================
+QUERY: getStreamChat
+================================================================================
+
+Input:
+- streamId: ID! (required)
+- limit: Int (optional, default: 50, max: 100)
+- nextToken: String (optional)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream
+
+2. limit:
+   - Must be between 1 and 100
+   - Default: 50 if not provided
+   - Must be a positive integer
+
+3. nextToken:
+   - Must be a valid pagination token if provided
+   - Cannot be empty string
+
+Business Rules:
+- Stream must exist
+- Chat messages are accessible to all authenticated users
+- Results sorted by createdAt ascending (oldest first) for pagination
+- Returns chat messages for the stream
+
+Error Responses:
+- 400 Bad Request: Invalid input format
+- 401 Unauthorized: Not authenticated
+- 404 Not Found: Stream not found
+
+================================================================================
+QUERY: getStreamViewers
+================================================================================
+
+Input:
+- streamId: ID! (required)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream
+
+Business Rules:
+- Stream must exist
+- Returns list of current viewers (if stream is LIVE)
+- Returns empty list if stream is not LIVE
+- Viewer count is real-time
+
+Error Responses:
+- 400 Bad Request: Invalid streamId format
+- 401 Unauthorized: Not authenticated
+- 404 Not Found: Stream not found
+
+================================================================================
+QUERY: getStreamEngagement
+================================================================================
+
+Input:
+- streamId: ID! (required)
+
+Validation Rules:
+1. streamId:
+   - Must be a valid UUID or ID format
+   - Cannot be null or empty
+   - Must reference an existing stream
+
+Business Rules:
+- Stream must exist
+- User must be stream owner or admin
+- Returns engagement metrics (viewers, chat messages, likes, shares)
+- Metrics are calculated in real-time for LIVE streams
+- Metrics are finalized for ENDED streams
+
+Error Responses:
+- 400 Bad Request: Invalid streamId format
+- 401 Unauthorized: Not authenticated
+- 403 Forbidden: Cannot access stream engagement (not owner or admin)
+- 404 Not Found: Stream not found
+
+================================================================================
+COMMON VALIDATION PATTERNS
+================================================================================
+
+1. ID Validation:
+   - All ID fields must be valid UUID v4 format or domain-specific ID format
+   - Cannot be null, empty, or whitespace-only
+
+2. String Validation:
+   - Trim leading/trailing whitespace
+   - Reject null bytes and control characters
+   - Validate UTF-8 encoding
+   - Enforce length limits to prevent DoS
+
+3. DateTime Validation:
+   - Must be valid ISO 8601 format
+   - Validate timezone
+   - Check date ranges
+   - Prevent past dates where applicable
+
+4. Status Transitions:
+   - SCHEDULED → LIVE (via startStream)
+   - LIVE → ENDED (via endStream)
+   - SCHEDULED → CANCELLED (via cancel, if implemented)
+   - Cannot transition from ENDED or CANCELLED
+
+5. Authentication & Authorization:
+   - All mutations require valid authentication token
+   - Users can only modify their own streams
+   - Admins can modify any stream
+   - Viewers can view and chat in streams
+
+6. Rate Limiting:
+   - Create stream: 5 per hour per user
+   - Send chat message: 10 per minute per user per stream
+   - Update stream info: 20 per hour per stream
+   - List streams: 100 per hour per user
+
+================================================================================
+STREAM STATUS RULES
+================================================================================
+
+1. SCHEDULED:
+   - Stream is created but not started
+   - Can be updated (title, description, scheduledStartTime)
+   - Visible to maker and followers (optional)
+   - Cannot send chat messages
+
+2. LIVE:
+   - Stream is currently broadcasting
+   - Can send chat messages
+   - Viewers can join
+   - Cannot update stream info
+   - Engagement metrics are tracked
+
+3. ENDED:
+   - Stream has finished
+   - Playback URL available
+   - Chat messages are read-only
+   - Engagement metrics are finalized
+   - Cannot be restarted
+
+4. CANCELLED:
+   - Stream was cancelled before starting
+   - No playback URL
+   - Cannot be started
+   - Engagement metrics not tracked
+
+================================================================================
+CROSS-DOMAIN VALIDATION
+================================================================================
+
+1. Maker Validation:
+   - Validate makerUserId exists
+   - Check maker verification status (optional)
+   - Verify maker can create streams
+
+2. User Validation:
+   - Validate userId exists
+   - Check user account is active
+   - Verify user authentication
+
+================================================================================
+ERROR RESPONSE FORMAT
+================================================================================
+
+All validation errors should return structured error responses:
+
+{
+  "errors": [
+    {
+      "message": "Validation failed",
+      "extensions": {
+        "code": "VALIDATION_ERROR",
+        "field": "content",
+        "reason": "Chat message must be between 1 and 500 characters"
+      }
+    }
+  ]
+}
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

@@ -1,0 +1,180 @@
+================================================================================
+LIVE STREAMING DOMAIN - SCOPE & RESPONSIBILITY
+================================================================================
+
+DOMAIN PURPOSE
+================================================================================
+
+The Live Streaming Domain manages live streaming sessions for makers to showcase their craft. This domain handles stream creation, lifecycle management, and viewer tracking.
+
+================================================================================
+WHAT THIS DOMAIN OWNS
+================================================================================
+
+1. Live Streams
+   - Stream records (title, description, scheduled time)
+   - Stream status (SCHEDULED, LIVE, ENDED)
+   - Stream metadata (created_at, started_at, ended_at)
+   - Stream URLs
+
+2. Stream Viewers
+   - Viewer tracking data
+   - Viewer join/leave timestamps
+   - Active viewer counts
+   - Viewer engagement data
+
+3. Stream State
+   - Current stream status
+   - Viewer counts
+   - Stream duration
+   - Stream statistics
+
+================================================================================
+WHAT THIS DOMAIN IS RESPONSIBLE FOR
+================================================================================
+
+1. Stream Lifecycle Management
+   - Creating stream sessions
+   - Starting streams (going live)
+   - Ending streams
+   - Managing stream status
+
+2. Viewer Tracking
+   - Tracking viewer joins
+   - Tracking viewer leaves
+   - Calculating viewer counts
+   - Maintaining real-time viewer counts
+
+3. Stream Delivery
+   - Generating stream URLs
+   - Managing stream infrastructure (if using external service)
+   - Handling stream failures
+
+4. Event Publishing
+   - Publishing StreamCreated events
+   - Publishing StreamStarted events
+   - Publishing StreamEnded events
+   - Publishing ViewerJoined events (optional)
+   - Publishing ViewerLeft events (optional)
+
+================================================================================
+WHAT THIS DOMAIN DOES NOT OWN
+================================================================================
+
+1. Maker Profiles
+   - Maker profile data (Maker Domain)
+   - Maker verification (Verification Trust Domain)
+
+2. Products
+   - Product data (Shelf Domain)
+   - Product details (Shelf Domain)
+
+3. Notifications
+   - Notification delivery (Notification Domain)
+   - Notification preferences (Notification Domain)
+
+4. Discovery
+   - Discovery feeds (Discovery Domain)
+   - Search indexes (Discovery Domain)
+
+5. User Authentication
+   - Authentication tokens (Auth Essentials Domain)
+   - User accounts (Auth Essentials Domain)
+
+================================================================================
+DOMAIN BOUNDARIES
+================================================================================
+
+1. Input Boundaries
+   - Receives stream creation requests
+   - Receives stream start/end requests
+   - Receives viewer tracking requests
+   - Consumes MakerVerified events (optional, for validation)
+   - Does NOT receive maker profile data directly
+
+2. Output Boundaries
+   - Provides stream data
+   - Provides viewer count data
+   - Publishes stream events
+   - Does NOT provide maker profile data
+   - Does NOT provide product data
+
+3. Data Boundaries
+   - Owns:
+      - `live_streams` table
+      - `stream_viewers` table
+      - Stream-related metadata and viewer stats
+   - Does NOT own:
+      - Maker profile or verification docs (Maker / Verification domains)
+      - Product data or discovery indexes
+   - Integration Notes:
+      - Consumes `MakerVerified` events optionally for eligibility checks; publishes stream lifecycle events for Notification and Discovery.
+      - Maintains viewer stats as a domain-local read-model; does not write into maker/product tables.
+
+4. Integration Boundaries
+   - Consumes `MakerVerified` events (optional) for eligibility checks
+   - Publishes stream lifecycle events to Notification and Discovery domains
+   - Does NOT directly access or modify other domain databases
+
+================================================================================
+KEY RESPONSIBILITIES
+================================================================================
+
+1. Enable Live Streaming
+   - Enable makers to create streams
+   - Enable makers to go live
+   - Enable makers to end streams
+   - Support stream scheduling
+
+2. Track Viewer Engagement
+   - Track viewer joins and leaves
+   - Calculate real-time viewer counts
+   - Maintain viewer statistics
+   - Support viewer analytics
+
+3. Manage Stream State
+   - Maintain stream status
+   - Track stream lifecycle
+   - Handle stream failures
+   - Generate stream URLs
+
+4. Support Discovery
+   - Publish stream events for discovery
+   - Enable stream discovery in feeds
+   - Support trending streams
+
+================================================================================
+CROSS-DOMAIN DEPENDENCIES
+================================================================================
+
+This Domain Provides To:
+- Notification Domain: StreamCreated, StreamStarted, StreamEnded events
+- Discovery Domain: StreamCreated, StreamStarted, StreamEnded events
+- Analytics Domain (if exists): ViewerJoined, ViewerLeft events
+
+This Domain Consumes From:
+- Maker Domain: MakerVerified events (optional, for validation)
+
+================================================================================
+TECHNICAL SCOPE
+================================================================================
+
+Technologies:
+- DynamoDB (live_streams, stream_viewers)
+- AppSync GraphQL API
+- Lambda functions for business logic
+- Optional: External streaming service integration (e.g., AWS IVS, Twitch, YouTube)
+
+Data Storage:
+- live_streams table
+- stream_viewers table
+
+API Type:
+- GraphQL API (AppSync)
+
+Event Communication:
+- EventBridge for publishing and consuming events
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

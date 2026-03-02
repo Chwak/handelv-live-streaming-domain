@@ -1,0 +1,47 @@
+================================================================================
+LIVE-STREAMING DOMAIN - EVENT CATALOG
+================================================================================
+Domain: live-streaming-domain
+Event Source: hand-made.live-streaming-domain
+Last Updated: 2026-02-16
+
+================================================================================
+PRODUCED EVENTS
+================================================================================
+
+Event: stream.started.v1
+Status: 🔲 PLANNED
+--------------------------------------------------------------------------------
+Description:
+  Published when a maker starts a live stream.
+
+Trigger: TBD
+Republish Lambda: TBD
+Payload Schema: TBD
+Consumers: notification-domain, shelf-discovery-domain
+
+--------------------------------------------------------------------------------
+
+Event: stream.ended.v1
+Status: 🔲 PLANNED
+--------------------------------------------------------------------------------
+Description:
+  Published when a live stream ends.
+
+Trigger: TBD
+Republish Lambda: TBD
+Payload Schema: TBD
+Consumers: analytics-domain
+
+================================================================================
+CONSUMED EVENTS
+================================================================================
+
+Event: maker.profile.created.v1
+Source: hand-made.maker-domain
+Status: 🔲 PLANNED
+--------------------------------------------------------------------------------
+Handler Lambda: TBD
+Action: Initialize streaming capabilities for new maker
+
+================================================================================

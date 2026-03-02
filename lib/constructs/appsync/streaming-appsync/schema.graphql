@@ -1,0 +1,102 @@
+type Query @aws_cognito_user_pools {
+  getStream(streamId: ID!): Stream
+  listStreams(
+    makerUserId: ID
+    status: StreamStatus
+    limit: Int
+    nextToken: String
+  ): StreamsConnection
+  getStreamChat(streamId: ID!, limit: Int, nextToken: String): ChatMessagesConnection
+  getStreamViewers(streamId: ID!): [Viewer!]!
+  getStreamEngagement(streamId: ID!): StreamEngagement
+}
+
+type Mutation @aws_cognito_user_pools {
+  createStream(input: CreateStreamInput!): Stream
+  startStream(streamId: ID!): Stream
+  endStream(streamId: ID!): Stream
+  sendChatMessage(input: SendChatMessageInput!): ChatMessage
+  updateStreamInfo(input: UpdateStreamInfoInput!): Stream
+}
+
+
+enum StreamStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+type Stream {
+  streamId: ID!
+  makerUserId: ID!
+  title: String!
+  description: String
+  status: StreamStatus!
+  streamUrl: String
+  playbackUrl: String
+  thumbnailUrl: String
+  scheduledStartTime: AWSDateTime
+  startedAt: AWSDateTime
+  endedAt: AWSDateTime
+  viewerCount: Int!
+  engagement: StreamEngagement
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type StreamsConnection {
+  items: [Stream!]!
+  nextToken: String
+}
+
+type ChatMessage {
+  messageId: ID!
+  streamId: ID!
+  userId: ID!
+  username: String!
+  content: String!
+  createdAt: AWSDateTime!
+}
+
+type ChatMessagesConnection {
+  items: [ChatMessage!]!
+  nextToken: String
+}
+
+type Viewer {
+  userId: ID!
+  username: String!
+  joinedAt: AWSDateTime!
+}
+
+type StreamEngagement {
+  streamId: ID!
+  totalViewers: Int!
+  peakViewers: Int!
+  averageWatchTime: Int!
+  totalChatMessages: Int!
+  totalLikes: Int!
+  totalShares: Int!
+}
+
+input CreateStreamInput {
+  makerUserId: ID!
+  title: String!
+  description: String
+  scheduledStartTime: AWSDateTime
+}
+
+input SendChatMessageInput {
+  streamId: ID!
+  userId: ID!
+  username: String!
+  content: String!
+}
+
+input UpdateStreamInfoInput {
+  streamId: ID!
+  title: String
+  description: String
+  scheduledStartTime: AWSDateTime
+}
