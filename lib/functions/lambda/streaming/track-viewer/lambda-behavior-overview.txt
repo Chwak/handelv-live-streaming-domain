@@ -1,0 +1,29 @@
+HANDLER: track-viewer-lambda.ts
+
+PRIMARY LOGIC
+Collector action join|leave: requires auth as collector and viewerId equals auth, loads stream from LIVE_STREAMS_TABLE_NAME, join allowed only if status LIVE, Put viewer row with attribute_not_exists(viewerId) then increments LIVE_STREAMS viewerCount; leave deletes viewer with attribute_exists and decrements count with Condition viewerCount > 0. Swallows ConditionalCheckFailedException for idempotent duplicate join/leave.
+
+PROS
+Idempotent-friendly join; prevents join when not live; separates viewer presence table.
+
+CONS
+Non-transactional pair of operations—partial failure can desync count vs membership rows. Decrement uses raw viewerCount - 1 without if_not_exists floor beyond condition—could error if concurrent. Uses LIVE_STREAMS_TABLE while create uses STREAMS_TABLE—critical integration risk.
+
+SECURITY
+Viewer cannot impersonate another collector (viewerId must equal auth). Stream existence reveals timing to any authenticated collector attempting joins (not found vs not live).
+
+PERFORMANCE
+Two writes on happy path; Query not used—Put/Update/Delete only.
+
+FURTHER IMPROVEMENTS
+- Dynamo transact write or consistent counter pattern (sharded counters) for hot streams.
+- Unify stream table with create/list/get paths.
+
+EXPOSES SENSITIVE INFORMATION
+NO — response is acknowledgment tuple, not roster.
+
+USER-FACING
+YES — AppSync collector join/leave live stream.
+
+EDGE CASES
+YES — Duplicate join silently ignored; leave when not joined silently ignored; stream in wrong table vs create makes join always not found.

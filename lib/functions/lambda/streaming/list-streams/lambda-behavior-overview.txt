@@ -1,0 +1,29 @@
+HANDLER: list-streams-lambda.ts
+
+PRIMARY LOGIC
+Authenticated user must supply makerUserId equal to self; queries STREAMS_TABLE via GSI1-MakerUserId with optional FilterExpression on uppercase status, paginates with validateLimit (20 default, 100 max) and custom nextToken encoding.
+
+PROS
+Self-list only—no arbitrary maker enumeration; status filter optional; caps page size.
+
+CONS
+FilterExpression after query can consume throughput (inefficient for sparse status filters on large partitions). Uses STREAMS_TABLE—must align with rows producers write.
+
+SECURITY
+Identity must match requested makerUserId—blocks listing others’ streams.
+
+PERFORMANCE
+Query on GSI; filter may increase RCUs for small page sizes.
+
+FURTHER IMPROVEMENTS
+- Model status in GSI sort key to avoid filter-heavy patterns.
+- Support admin/moderation list via separate privileged Lambda if needed.
+
+EXPOSES SENSITIVE INFORMATION
+PARTIAL — Returns stream metadata for own channel only.
+
+USER-FACING
+YES — AppSync list maker’s streams.
+
+EDGE CASES
+PARTIAL — Missing makerUserId errors; makerUserId mismatch Forbidden; status string uppercased—unknown statuses return empty sets via filter.

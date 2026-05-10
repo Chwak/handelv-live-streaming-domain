@@ -1,0 +1,30 @@
+HANDLER: create-stream-lambda.ts
+
+PRIMARY LOGIC
+AppSync mutation for authenticated maker: validates input.makerUserId equals authenticated maker id, validates title length 1–200 and optional description (≤1000) and scheduledStartTime passthrough string, allocates streamId UUID, Put’s a SCHEDULED row into STREAMS_TABLE_NAME with viewerCount 0 and timestamps. Computes W3C-style traceparent from headers or random (variable currently unused in persistence in this file).
+
+PROS
+Explicit forbidden when subject mismatch; title bounds; clear initial status machine entry point.
+
+CONS
+traceparent is resolved but not written to the item (dead variable for observability). scheduledStartTime is not ISO-validated here.
+
+SECURITY
+Maker-only via requireAuthenticatedUser(event, 'maker'). Table name from env—no injection.
+
+PERFORMANCE
+Single Put—low cost.
+
+FURTHER IMPROVEMENTS
+- Persist traceparent or remove noise.
+- Validate scheduledStartTime parses as date.
+- Align table env with start/end Lambdas if product expects one physical table (see get-stream vs LIVE_STREAMS split).
+
+EXPOSES SENSITIVE INFORMATION
+NO beyond stream metadata the maker owns.
+
+USER-FACING
+YES — AppSync create scheduled stream.
+
+EDGE CASES
+PARTIAL — Overwriting same streamId impossible (new UUID each call); invalid maker/title → Invalid input format.

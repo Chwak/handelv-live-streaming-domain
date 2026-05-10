@@ -1,0 +1,29 @@
+HANDLER: get-viewer-count-lambda.ts
+
+PRIMARY LOGIC
+Authenticated caller loads stream from STREAMS_TABLE_NAME, requires makerUserId equals auth, then Query STREAM_VIEWERS_TABLE_NAME by streamId with Select COUNT to return viewerCount (Count from Dynamo, not live aggregate field).
+
+PROS
+Maker-only analytics; COUNT query avoids returning viewer identities.
+
+CONS
+Two sources of truth: LIVE_STREAMS_TABLE.item.viewerCount maintained by track-viewer vs this COUNT—can diverge if updates fail partial. Stream lookup uses STREAMS_TABLE while LIVE activity uses LIVE_STREAMS_TABLE in track-viewer—another alignment risk.
+
+SECURITY
+Maker-only via ownership check before counting.
+
+PERFORMANCE
+Query COUNT can be O(N) partition size for viewers—may be expensive for viral streams; consider approximate counts or cached aggregates.
+
+FURTHER IMPROVEMENTS
+- Single table / single counter strategy; or eventually consistent cache.
+- Use same stream table as track-viewer’s Get.
+
+EXPOSES SENSITIVE INFORMATION
+NO — aggregate only.
+
+USER-FACING
+YES — AppSync read for maker dashboard.
+
+EDGE CASES
+PARTIAL — If viewer table empty but counter on stream item non-zero, numbers disagree; stream missing → not found.

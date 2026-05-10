@@ -1,0 +1,29 @@
+HANDLER: end-stream-lambda.ts
+
+PRIMARY LOGIC
+Same pattern as start-stream but requires status LIVE, transitions to ENDED with endedAt timestamp on LIVE_STREAMS_TABLE_NAME; maker ownership enforced.
+
+PROS
+Simple terminal state; consistent authorization checks.
+
+CONS
+Same LIVE_STREAMS vs STREAMS_TABLE split risk as start-stream. No guard if already ENDED (would error Stream is not live).
+
+SECURITY
+Maker-only.
+
+PERFORMANCE
+Get + Update.
+
+FURTHER IMPROVEMENTS
+- Idempotent end (no-op if already ENDED) if clients retry.
+- Condition expression locking status.
+
+EXPOSES SENSITIVE INFORMATION
+NO.
+
+USER-FACING
+YES — AppSync end stream.
+
+EDGE CASES
+PARTIAL — Ending a SCHEDULED stream fails; missing item not found; race with concurrent end/start.

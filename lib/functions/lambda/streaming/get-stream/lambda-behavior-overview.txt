@@ -1,0 +1,29 @@
+HANDLER: get-stream-lambda.ts
+
+PRIMARY LOGIC
+Authenticated user (any mode per requireAuthenticatedUser without role hint) fetches stream by streamId from STREAMS_TABLE_NAME; returns item only if stream.makerUserId matches caller—otherwise Forbidden.
+
+PROS
+Simple read path with ownership gate.
+
+CONS
+Collectors cannot read stream metadata through this function even to watch—only the maker matches auth check, so function is maker-only in practice unless auth id can be shared (unlikely). Uses STREAMS_TABLE_NAME while live lifecycle uses LIVE_STREAMS_TABLE_NAME—high risk of reading wrong/empty table vs rows updated elsewhere.
+
+SECURITY
+Prevents reading other makers’ rows by user id match.
+
+PERFORMANCE
+Single Get.
+
+FURTHER IMPROVEMENTS
+- Clarify intended audience: if collectors need read, add role branch + public LIVE visibility rules.
+- Consolidate table configuration with start/end/track-viewer.
+
+EXPOSES SENSITIVE INFORMATION
+PARTIAL — Returns full stream item to authorized maker only (per current auth rule).
+
+USER-FACING
+YES — AppSync read; effectively maker-only given equality check.
+
+EDGE CASES
+YES — Non-owner authenticated user always Forbidden even for public live viewing scenarios not modeled here.

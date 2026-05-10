@@ -1,0 +1,29 @@
+HANDLER: start-stream-lambda.ts
+
+PRIMARY LOGIC
+Maker loads stream by streamId from LIVE_STREAMS_TABLE_NAME, verifies makerUserId matches auth, requires current status SCHEDULED, then Update sets status LIVE with startedAt and updatedAt.
+
+PROS
+State-gated transition prevents arbitrary jumps; ownership enforced.
+
+CONS
+Uses LIVE_STREAMS_TABLE_NAME while create-stream writes STREAMS_TABLE_NAME—if CDK points these to different tables, start will never find scheduled rows (configuration risk called out in code review).
+
+SECURITY
+Authenticated maker; no cross-tenant access.
+
+PERFORMANCE
+Get + Update.
+
+FURTHER IMPROVEMENTS
+- Conditional UpdateExpression on status=SCHEDULED for atomic race safety.
+- Unify table env names across handlers.
+
+EXPOSES SENSITIVE INFORMATION
+NO.
+
+USER-FACING
+YES — AppSync transition to live.
+
+EDGE CASES
+YES — Wrong status throws Stream cannot be started; wrong maker Forbidden; missing stream Stream not found; concurrent starts can race without condition expression.
