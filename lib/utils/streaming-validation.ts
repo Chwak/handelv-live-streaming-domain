@@ -2,6 +2,14 @@
  * Validation helpers for Live Streaming Domain GraphQL lambdas.
  */
 
+import {
+  requireAuthenticatedUser as requireAuthenticatedUserCore,
+  PLATFORM_DUAL_ROLE_DEFAULT_COLLECTOR_FACING,
+  PLATFORM_DUAL_ROLE_DEFAULT_GRAPHQL,
+  type DualRoleAmbiguousDefault,
+  type RequiredMode,
+} from "./active-mode";
+
 export function validateId(id: unknown): string | null {
   if (typeof id !== 'string') return null;
   const trimmed = id.trim();
@@ -30,39 +38,17 @@ export function encodeNextToken(key?: Record<string, unknown> | null): string | 
   return Buffer.from(JSON.stringify(key), 'utf8').toString('base64url');
 }
 
-type ActiveMode = 'maker' | 'collector';
-type RequiredMode = ActiveMode | 'both';
 const REQUIRED_ACTIVE_MODE: RequiredMode = 'both';
 
-function isEnabled(value: unknown): boolean {
-  return value === true || value === 'true';
-}
-
-function resolveActiveMode(claims: Record<string, unknown> | undefined): ActiveMode | null {
-  const rawMode = claims?.active_mode;
-  if (rawMode === 'maker' || rawMode === 'collector') return rawMode;
-  const makerEnabled = isEnabled(claims?.maker_enabled);
-  const collectorEnabled = isEnabled(claims?.collector_enabled);
-  if (makerEnabled !== collectorEnabled) return makerEnabled ? 'maker' : 'collector';
-  if (makerEnabled && collectorEnabled) return 'maker';
-  return null;
-}
-
-function isAuthorizedForMode(claims: Record<string, unknown> | undefined, required: RequiredMode): boolean {
-  const activeMode = resolveActiveMode(claims);
-  if (required === 'both') return activeMode !== null;
-  return activeMode === required;
+function dualDefaultFor(requiredMode: RequiredMode): DualRoleAmbiguousDefault {
+  return requiredMode === 'collector'
+    ? PLATFORM_DUAL_ROLE_DEFAULT_COLLECTOR_FACING
+    : PLATFORM_DUAL_ROLE_DEFAULT_GRAPHQL;
 }
 
 export function requireAuthenticatedUser(
   event: { identity?: { sub?: string; claims?: { sub?: string } } },
   requiredMode: RequiredMode = REQUIRED_ACTIVE_MODE,
 ): string | null {
-  const identity = event?.identity;
-  if (!identity) return null;
-  const claims = identity.claims as Record<string, unknown> | undefined;
-  if (!isAuthorizedForMode(claims, requiredMode)) return null;
-  if (typeof identity.sub === 'string' && identity.sub.trim()) return identity.sub.trim();
-  if (identity.claims?.sub && typeof identity.claims.sub === 'string') return identity.claims.sub.trim();
-  return null;
+  return requireAuthenticatedUserCore(event, requiredMode, dualDefaultFor(requiredMode));
 }
